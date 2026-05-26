@@ -1,0 +1,222 @@
+---
+title: "Water Sanitation Study"
+author: "Moses Otieno"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  word_document: 
+    reference_docx: "../reports/template.docx"
+knit: (function(inputFile, encoding) {
+    rmarkdown::render(inputFile, encoding = encoding, 
+    output_dir = "../reports/")
+  })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, ft.align = "left", warning = FALSE)
+options(gtsummary.tbl_summary.percent_fun = 
+          function(x) sprintf(x * 100, fmt='%#.1f'))
+```
+
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(gtsummary)
+library(flextable)
+library(officer)
+library(dmngt)
+library(lubridate)
+library(dlookr)
+library(patchwork)
+library(lubridate)
+```
+
+
+```{r}
+enrollment <- read_rds("../data/enrollment_analytic.rds")
+facilities <- read_rds("../data/facilities.rds")
+costing <- read_rds("../data/costing_analytic.rds")
+followup <- read_rds("../data/followup_analytic.rds")
+closeout <- read_rds("../data/closeout_analytic.rds")
+enroll_labels <- labels_keep(enrollment)
+costing_labels <- labels_keep(costing)
+```
+
+```{r functions}
+date_iq_range <-  \(x) quantile(x, probs=c(.25, .75), type=1, na.rm = TRUE) |>
+  paste0(collapse='-to-')
+
+
+genvarsum <- function(data = partner, vars){
+  
+  t1 <- data  |> 
+    select(all_of(vars)) |> 
+    diagnose() |> 
+    filter(missing_count>0) |> 
+    mutate(missing_percent = round(missing_percent, 1)) |> 
+    arrange(desc(missing_percent)) 
+  
+if(nrow(t1)>0){
+  t1 |> 
+    select(!unique_rate) |> 
+    flextable() |> 
+    theme_box() |> 
+    flextable::font(fontname = "Calibri", part = "all") %>%
+    flextable::padding(padding = 1, part = "all") %>% 
+    bold(part = "header") %>% 
+    bg(bg = "gray", part = "header") |> 
+    bg(i = ~ missing_percent > 70, bg = "#D3A5A5") %>%  
+    color(i = ~ missing_percent > 70, color = "black") %>%  
+    bold(i = ~ missing_percent > 70, bold = TRUE) |> 
+    bg(i = ~ between(missing_percent, 1, 70), bg = "orange") %>%  
+    color(i = ~ between(missing_percent, 1, 70), color = "black") %>%  
+    bold(i = ~ between(missing_percent, 1, 70), bold = TRUE) |>
+    autofit()
+}else{
+  cat("We do not have a variable with missing information")
+}
+ 
+
+}
+
+gentable <- function(data = partner, variables, strata = "facility_name") {
+  
+  tabstitle <- switch (strata,
+    "facility_name" =  "Facility",
+    "age_cat" = "Age"
+  )
+  
+t1 <- data %>% 
+  remove_empty(which = c("cols")) |> 
+  select(any_of(variables), -strata) %>% 
+  tbl_summary( type = list(
+               where(is.factor) ~ "categorical",
+               where(is.numeric) ~ "continuous"),
+               missing_text =  "Missing",
+               digits = list(all_categorical() ~ c(0, 1)),
+               #statistic = list(where(is.Date) ~ "{date_iq_range}"),
+               
+               ) %>% 
+  bold_labels() 
+
+
+t2 <- data %>%
+  remove_empty(which = c("cols")) |> 
+  select(any_of(variables), strata) %>% 
+  tbl_summary(
+    by = {{strata}},
+    type = list(
+                where(is.factor) ~ "categorical",
+                where(is.numeric) ~ "continuous"),
+    
+    missing_text = "Missing",
+    digits = list(all_categorical() ~ c(0, 1)),
+    
+    #statistic = list(where(is.Date) ~ "{date_iq_range}"),
+    
+  )  |> 
+  bold_labels() 
+ 
+
+
+table1_final <- tbl_merge(
+  tbls = list(t1, t2),
+  tab_spanner = c("**Overall**", tabstitle)
+) %>%
+  bold_labels() %>%
+  modify_header(label = "**Variable**") %>% 
+  modify_footnote(everything() ~ NA) %>% 
+  gtsummary::as_flex_table() %>%
+  theme_box() %>% 
+  align(i = 1, align = "center", part = "header") %>% 
+  flextable::font(fontname = "Calibri", part = "all") %>%
+  flextable::padding(padding = 1, part = "all") %>% 
+  bold(part = "header") %>% 
+  bg(bg = "gray", part = "header")
+
+table1_final
+
+}
+
+
+draw_plot <- function(dataset, variable, plttitle, xtitle){
+  
+  dataset_name <- deparse(substitute(dataset))
+  
+  caption_title <- switch (dataset_name,
+    "enrollment" = "Data Source: Enrollment Dataset",
+    "followup" = "Data Source: Follow up Dataset",
+    "costing" = "Data Source: Costing Dataset"
+  )
+  
+  dataset |> 
+    filter(partner_country == params$partner_country) |> 
+    ggplot(aes(x = {{variable}})) +
+    geom_histogram(binwidth = 5, fill = "#1f78b4", color = "white", alpha = 0.8) +
+    facet_wrap(~facility, labeller = label_value) +
+    theme_minimal(base_size = 14) +
+    labs(
+      title = plttitle,
+      x = xtitle,
+      y = "Count",
+      caption = caption_title
+    ) +
+      theme(
+      strip.background = element_rect(fill = "#1f78b4", color = NA),
+      strip.text = element_text(color = "white", face = "bold"),
+      panel.grid.minor = element_blank(),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 16))
+
+}
+
+
+```
+
+
+
+## SECTION 1: DEMOGRAPHICS
+
+```{r enroll-section-1}
+
+enrollment <- enrollment |> 
+  mutate(across(where(is.numeric), ~ifelse(. < 0, NA, .)),
+         #across(where(is.factor), ~fct_na_level_to_value(., "9")),
+         #across(where(is.factor), ~fct_na_level_to_value(., "99"))
+         ) |> 
+  mutate(across(c(dbp, sbp), ~ifelse(.==999, NA, .)),
+         nchild = as.factor(nchild),
+         childliv = as.factor(childliv),
+         vno = as.factor(vno))
+
+
+
+partner <- enrollment |> 
+  filter(partner_country == params$partner_country) |> 
+  mutate(across(where(is.factor), fct_drop))
+
+```
+
+### Variables with Missing Values
+
+```{r enroll-section-1-sum, results='asis'}
+
+section1 <- c("cons", "dic", "gender", "dob", "age_cat","ctry", "religion", "specifiied_religion", "eversch", "insch", "outsch", "whyoutsch", "specified_outsch",
+              "outschcvd", "leveled", "train", "specified_training", "employed", "specified_employ", "mstat", "ownchild", "nchild", "childliv", "hivdate", "ehivdate", "artstat")
+
+  
+partner <- labels_restore(partner, enroll_labels)  
+genvarsum (partner, section1)
+```
+
+\newpage
+
+### Distribution of Responses
+
+```{r enroll-section-1-eda}
+
+gentable(partner, section1, "facility_name")
+```
+
+
+
+

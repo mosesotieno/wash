@@ -1,0 +1,109 @@
+---
+title: "Water Sanitation Study"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: 
+  word_document: 
+    reference_docx: "../reports/template.docx"
+knit: (function(inputFile, encoding) {
+    rmarkdown::render(inputFile, encoding = encoding, 
+    output_dir = "../reports/")
+  })
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, ft.align = "left", warning = FALSE)
+options(gtsummary.tbl_summary.percent_fun = 
+          function(x) sprintf(x * 100, fmt='%#.1f'))
+```
+
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(gtsummary)
+library(flextable)
+library(dmngt)
+library(lubridate)
+```
+
+
+
+```{r functions}
+gentable <- function(variables) {
+  
+  
+t1 <- wash %>% 
+  remove_empty(which = c("cols")) |> 
+  select(any_of(variables)) %>% 
+  tbl_summary( type = list(
+               where(is.factor) ~ "categorical",
+               where(is.numeric) ~ "continuous"),
+               missing_text =  "Missing",
+               digits = list(all_categorical() ~ c(0, 1)),
+               #statistic = list(where(is.Date) ~ "{date_iq_range}"),
+               
+               ) %>% 
+  bold_labels() %>%
+  modify_header(label = "**Variable**") %>% 
+  modify_footnote(everything() ~ NA) %>% 
+  gtsummary::as_flex_table() %>%
+  theme_box() %>% 
+  align(i = 1, align = "center", part = "header") %>% 
+  flextable::font(fontname = "Calibri", part = "all") %>%
+  flextable::padding(padding = 1, part = "all") %>% 
+  bold(part = "header") %>% 
+  bg(bg = "gray", part = "header")
+
+
+t1
+
+
+}
+
+```
+
+
+```{r import}
+wash <- read_rds("../data/wash_clean.rds")
+
+```
+
+
+
+
+```{r extract}
+sample_size <- nrow(wash)
+consented_n <- wash |> filter(consent == "Yes") |> nrow()
+start_pilot <- format(min(wash$interview_date), "%d-%B-%Y")
+endt_pilot <- format(max(wash$interview_date), "%d-%B-%Y")
+
+
+```
+
+# Preliminaries
+
+We began the pilot phase of the study on `r start_pilot` and concluded on `r endt_pilot`. `r sample_size` women were available in the households for interview. Out of these `r consented_n` consented for the interview and agreed to be interviewed. 
+
+
+```{r}
+
+
+```
+
+
+# Demograpic Details 
+
+Below are the demographic details of the women that participated in pilot phase of the WASH study. 
+
+```{r}
+vars <- c("sd01","age")
+
+
+gentable(vars)
+
+```
+
+
+
+
