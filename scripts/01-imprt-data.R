@@ -1,11 +1,12 @@
-library(tidyverse)
-library(readxl)
+
 library(janitor)
 library(writexl)
+library(readxl)
+library(tidyverse)
 
-sanitation <- read_xlsx("data/Water-Sanitation-HPV.xlsx", sheet = 2, skip = 1)
-
-
+sanitation <- read_xlsx("data/WASH HPV MAIN STUDY DATASET.xlsx", sheet = 1)
+dict_pilot <- read_xlsx("metadata/wash_dict_pilot.xlsx")
+wash_hpv_quiz <- read_xlsx("metadata/WASH_HPV_QUESTIONNAIRE.xlsx")
 
 sanitation <- sanitation |> 
   remove_empty(which = c("cols"))
@@ -19,8 +20,28 @@ dict_sat <- dict_sat |>
          new_var = str_remove(new_var, "\\. $"))
 
 
-write_xlsx(dict_sat, "metadata/dict_sat.xlsx")
+dict_pilot <- dict_pilot |> 
+  select(variable, new_label)
+
+
+dict_sat <- dict_sat |> 
+  left_join(dict_pilot, by = "variable")
+
+write_xlsx(dict_sat, "metadata/dict_sat_main.xlsx")
+
+
+write_rds(sanitation, "data/wash_main.rds")
 
 
 
-write_rds(sanitation, "data/wash.rds")
+# Questionnaire -----------------------------------------------------------
+
+wash_hpv_quiz <- wash_hpv_quiz |> 
+  select(type, name, `label::English (en)`, relevant, constraint) |> 
+  rename(quiz_text = `label::English (en)`)
+
+
+
+write_rds(wash_hpv_quiz, "metadata/wash_hpv_quiz.rds")
+
+

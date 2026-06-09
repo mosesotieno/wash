@@ -1,0 +1,228 @@
+---
+title: "WASH Study Data Checks"
+author: "Moses Otieno"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  word_document: 
+    reference_docx: "../reports/template.docx"
+knit: (function(inputFile, encoding) {
+    rmarkdown::render(inputFile, encoding = encoding, 
+    output_dir = "../reports/")
+  })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, ft.align = "left", warning = FALSE)
+options(gtsummary.tbl_summary.percent_fun = 
+          function(x) sprintf(x * 100, fmt='%#.1f'))
+```
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(gtsummary)
+library(flextable)
+library(officer)
+library(dmngt)
+library(lubridate)
+library(dlookr)
+library(patchwork)
+library(lubridate)
+```
+
+
+
+```{r}
+gentable <- function(data = wash, variables) {
+  
+ 
+  
+t1 <- data %>% 
+  remove_empty(which = c("cols")) |> 
+  select(any_of(variables)) %>% 
+  tbl_summary( type = list(
+               where(is.factor) ~ "categorical",
+               where(is.numeric) ~ "continuous"),
+               missing_text =  "Missing",
+               digits = list(all_categorical() ~ c(0, 1)),
+               #statistic = list(where(is.Date) ~ "{date_iq_range}"),
+               
+               ) %>% 
+  bold_labels() 
+
+ 
+
+
+t1 <-  t1 |> 
+  modify_header(label = "**Variable**") %>% 
+  modify_footnote(everything() ~ NA) %>% 
+  modify_header(label = "**Variable**") |> 
+  gtsummary::as_flex_table() %>%
+  theme_box() %>% 
+  align(i = 1, align = "center", part = "header") %>% 
+  flextable::font(fontname = "Calibri", part = "all") %>%
+  flextable::padding(padding = 1, part = "all") %>% 
+  bold(part = "header") %>% 
+  bg(bg = "gray", part = "header") 
+  
+  
+
+t1
+
+}
+
+```
+
+
+
+```{r}
+wash <- read_rds("../data/wash_main_clean.rds")
+
+wash_labels <- labels_keep(wash)
+
+
+```
+
+
+
+
+# Preliminaries
+
+The following are my observations, points of clarification  and a skim through of the entire dataset. 
+
+
+# Structure of Questionaire
+
+## Sections
+
+You divided the divided the questionnaire into sections that makes it easy to navigate. 
+
+
+## Language Translations
+
+We have good Dholuo translations that can be easily understood by Dholuo speakers. However I noticed we did not have Swahili translation-possibly because it is Luo dominated region. Wondering if we had a non-luo married in the region but still does not understand Luo but comfortable with Swahili. In future we can provide Swahili translation. 
+
+
+## Questionnaire and Dataset
+
+I noticed the questionnaire is not in sync with the dataset, particulaly naming of the variable. I will give 2 examples; 
+
+- `SD09. What is your religion?`  - in the dataset
+- `SD10. What is your religion?` - in the questionnaire 
+
+- `Do you understand the study as it has been explained to you? Do you agree to participate in this study?` - Dataset 
+- `Are you willing/able to participate?` - Questionnaire
+
+
+
+## Data Export
+
+When exporting the dataset, choose the option of exporting the variable names as opposed to variable label. The data manager will then use the data dictionary to label the variables. 
+
+
+## Duplicated Questions
+
+I noticed some duplicated questions with the same choice label. 
+
+- `Q12. What is the **Main** source of cooking fuel in your household?/Other` - Column BM in the Dataset
+- `Q12. What is the **Main** source of cooking fuel in your household?/Other` - Column BO in the dataset
+
+- `Q12-1. What is the **Main** source of lighting for your household?/Other (specify)` - Column BV
+- `Q12-1. What is the **Main** source of lighting for your household?/Other (specify)` - Column BW
+
+
+## Two Questions in One
+
+`Do you understand the study as it has been explained to you? Do you agree to participate in this study?`. Were they answering the first part or the second part? We can separate the two in future. 
+
+
+
+## Duplcated Respondent ID
+
+```{r}
+wash |> 
+  get_dupes(respondent_id) |> 
+  select(respondent_id, consent, refusal, interviewer, interview_date) |> 
+    flextable() |> 
+    theme_box() |> 
+    flextable::font(fontname = "Calibri", part = "all") %>%
+    flextable::padding(padding = 1, part = "all") %>% 
+    bold(part = "header") %>% 
+    bg(bg = "gray", part = "header") |>
+    autofit()
+
+
+```
+
+
+# EDA
+
+
+## Part 1: Socio-Demographic Information
+
+
+```{r}
+wash <- wash |> 
+  filter(consent == "Yes")
+
+
+
+part1 <- wash |> 
+  select(starts_with("sd")) |> 
+  names()
+
+exclude <- c("sd01_2", "sd01_3", "sd04_1", "sd05_1", "sd09_2_1", "sd06")
+include <- c("hhold_income", "age")
+
+part1 <- part1[!part1 %in% exclude]
+part1 <- c(part1, include)
+
+gentable(wash, part1)
+
+```
+
+## Part 2: Water Sources and Practices
+
+```{r}
+part2 <- wash |> 
+  select(starts_with("wsp")) |> 
+  names()
+
+exclude <- c("wsp01_1")
+
+part2 <- part2[!part2 %in% exclude]
+
+
+gentable(wash, part2)
+```
+
+
+
+## Part 3: Sanitation Facilities and Practices
+
+```{r}
+
+
+```
+
+
+## Part 6: WASH and Sexual-Reproductive Health Hygiene Practices (Sensitive Section)
+
+
+
+```{r}
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
