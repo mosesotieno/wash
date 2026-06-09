@@ -1,3 +1,19 @@
+# Header ------------------------------------------------------------------
+
+# Name: 02-labelling
+
+# Purpose: Prepare the variable labels and value labels of the datasets
+
+# Author: Moses Otieno
+
+# Contacts: mosotieno25@gmail.com
+
+# Date: 09 June 2026
+
+
+# Packages ----------------------------------------------------------------
+
+
 library(tidyverse)
 library(labelled)
 library(readxl)
@@ -5,10 +21,11 @@ library(writexl)
 library(janitor)
 
 
+# Imports -----------------------------------------------------------------
+
+
 wash <- read_rds("data/wash_main.rds")
 wash_dict <- read_xlsx("metadata/wash_main_dict.xlsx")
-
-
 
 
 # Clean dictionary --------------------------------------------------------
@@ -54,7 +71,6 @@ wash_dict <- wash_dict |>
 # Apply variable labels ---------------------------------------------------
 
 var_label(wash) <- setNames(wash_dict$new_label, wash_dict$new_var)
-
 
 
 write_rds(wash, "data/wash_main_labelled.rds")
