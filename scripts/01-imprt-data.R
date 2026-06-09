@@ -1,8 +1,25 @@
+# Header ------------------------------------------------------------------
+
+# Name: 01-import-data.R
+
+# Purpose: Importing the datasets and data dictionary for WASH analysis
+
+# Author: Moses Otieno
+
+# Contacts: mosotieno25@gmail.com
+
+# Date: 09 June 2026
+
+# Packages ----------------------------------------------------------------
 
 library(janitor)
 library(writexl)
 library(readxl)
 library(tidyverse)
+
+
+# Import datasets ---------------------------------------------------------
+
 
 sanitation <- read_xlsx("data/WASH HPV MAIN STUDY DATASET.xlsx", sheet = 1)
 dict_pilot <- read_xlsx("metadata/wash_dict_pilot.xlsx")
