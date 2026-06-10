@@ -35,8 +35,7 @@ library(lubridate)
 ```{r}
 gentable <- function(data = wash, variables) {
   
- 
-  
+
 t1 <- data %>% 
   remove_empty(which = c("cols")) |> 
   select(any_of(variables)) %>% 
@@ -195,6 +194,20 @@ part2 <- part2[!part2 %in% exclude]
 
 gentable(wash, part2)
 ```
+
+## Wealth Index
+
+
+```{r}
+part2a <- wash |> 
+  select(starts_with("q0")) |> 
+  names()
+
+
+gentable(wash, part2a)
+
+```
+
 
 
 
