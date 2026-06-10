@@ -68,9 +68,33 @@ wash_dict <- wash_dict |>
   mutate(new_var = make_clean_names(new_var))
 
 
+
+
+
+# Cleaning character variables --------------------------------------------
+
+wash <- wash |> 
+  mutate(
+    across(where(is.character), ~str_remove(., "\\(.+\\)")),
+    across(where(is.character), ~str_remove_all(., "\\n|\\r")),
+    across(where(is.character), ~str_squish(.))
+  )
+  
+
+
+# Create factor variables -------------------------------------------------
+
+fct_vars <- wash_dict |> 
+  filter(col_type == "fct") |> 
+  pull(new_var)
+
+
+wash <- wash |> 
+  mutate(across(fct_vars, as_factor))
+
+
 # Apply variable labels ---------------------------------------------------
 
 var_label(wash) <- setNames(wash_dict$new_label, wash_dict$new_var)
-
 
 write_rds(wash, "data/wash_main_labelled.rds")

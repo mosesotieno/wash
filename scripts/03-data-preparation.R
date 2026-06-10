@@ -69,9 +69,7 @@ wash <- wash |>
          wsp01 = fct_infreq(wsp01),
          across(c("wsp01", "wsp04","wsp08", "wsp11"), as_factor),
          across(sexvars, as_factor),
-         across(where(is.character), ~str_remove(., "\\(.+\\)")),
-         across(where(is.character), ~str_remove_all(., "\\n|\\r")),
-         across(where(is.character), ~str_squish(.))
+         
          )
 
 # Multiselect --------------------------------------------------------------
