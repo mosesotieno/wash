@@ -22,6 +22,7 @@ library(tidyverse)
 
 
 sanitation <- read_xlsx("data/WASH HPV MAIN STUDY DATASET.xlsx", sheet = 1)
+water_types <- read_xlsx("data/WASH HPV MAIN STUDY DATASET.xlsx", sheet = 3)
 dict_pilot <- read_xlsx("metadata/wash_dict_pilot.xlsx")
 wash_hpv_quiz <- read_xlsx("metadata/WASH_HPV_QUESTIONNAIRE.xlsx")
 
@@ -60,5 +61,32 @@ wash_hpv_quiz <- wash_hpv_quiz |>
 
 
 write_rds(wash_hpv_quiz, "metadata/wash_hpv_quiz.rds")
+
+
+
+
+# Water types -------------------------------------------------------------
+
+water_types <- water_types |> 
+  mutate(
+    across(where(is.character), ~str_remove(., "\\(.+\\)")),
+    across(where(is.character), ~str_remove_all(., "\\n|\\r")),
+    across(where(is.character), ~str_squish(.))
+  )
+
+
+write_rds(water_types, "data/water_types.rds")
+
+
+dict_types <- labelled::generate_dictionary(water_types)
+
+
+dict_types <- dict_types |> 
+  select(pos, variable, col_type) |> 
+  mutate(new_var = str_extract(variable, "\\w+.+\\. "),
+         new_var = str_remove(new_var, "\\. $"))
+
+
+write_xlsx(dict_types, "metadata/dict_water_types.xlsx")
 
 

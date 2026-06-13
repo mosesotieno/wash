@@ -13,7 +13,7 @@
 
 # Pakcages ----------------------------------------------------------------
 
-
+library(janitor)
 library(tidyverse)
 library(dmngt)
 
@@ -22,7 +22,8 @@ library(dmngt)
 
 
 wash <- read_rds("data/wash_main_labelled.rds")
-
+water_types <- read_rds("data/water_types_labelled.rds")
+watertypes_dict <- read_rds("metadata/watertypes_dict.rds")
 
 wash_labels <- labels_keep(wash)
 
@@ -84,10 +85,182 @@ wash <- wash |>
 
 wash <- labels_restore(wash, wash_labels)
 
+
+
+# Clean dob ---------------------------------------------------------------
+
+
+# R128 did not know her dob and year of birth recorded as 999
+
+# She was single and in Primary school. We can get the median dob and age of 
+# of women almost similar to her and assign that dob and age to her 
+
+wash |> 
+  summarise(med_age = median(age), 
+            med_dob = median(sd01),
+            .by = c(sd02, sd03)) |> 
+  filter(sd03 == "Primary school")
+
+sprima_dob = as.Date("1992-04-04")
+sprima_age = 34
+
+
+
+wash <- wash |> 
+  mutate(age = ifelse(respondent_id == "R128", sprima_age, age),
+         sd01 = ifelse(respondent_id == "R128", sprima_dob, sd01),
+         sd01 = as.Date(sd01),
+         )
+
+
+
+
+# Create age bands --------------------------------------------------------
+
+wash <- wash |> 
+  mutate(age_cat = case_when(between(age, 15, 19)~"15-19",
+                             between(age, 20, 24)~"20-24",
+                             between(age, 25, 34)~"25-34",
+                             between(age, 35, 44)~"35-44",
+                             between(age, 45, 64)~"45-64",
+                             ),
+         age_cat = as.factor(age_cat))
+
+
+# Recode variables --------------------------------------------------------
+
+
+wash <- wash |> 
+  mutate(marital_status = ifelse(str_detect(sd02, "Married"), "Married", as.character(sd02)),
+         marital_status = factor(marital_status, levels = c("Single", "Married", "Divorced/Separated", "Widowed")),
+         education_level = fct_collapse(sd03, "None/Primary" = c("Primary school", "No formal education"),
+                                      "University/Tertiary" = c("University/Higher education", "Tertiary/Vocational training"),
+                                      "Secondary" = "Secondary school"),
+         education_level = fct_relevel(education_level, "None/Primary"),
+         occupation = fct_collapse(sd04, "Farming" = "Farming/Agriculture",
+                                   "Housewife" = "Housewife/Homemaker",
+                                   "Small business owner" = "Small business owner/Trader/Kiosk",
+                                   "Other" = c("Other", "Artisan/Mining/Carpentry", "Sales person", "Formal employment",
+                                               "Fishing")),
+         hhsize = case_when(between(sd07_2, 1, 3 ) ~ "1-3",
+                            between(sd07_2, 4, 6 ) ~ "4-6",
+                            between(sd07_2, 7, 9 ) ~ "7-9",
+                            between(sd07_2, 10, 15 ) ~ "10+",
+                            ),
+         hhsize = factor(hhsize, levels = c("1-3", "4-6", "7-9", "10+")),
+         wsp04 = fct_relevel(wsp04, c("< 5 minutes", "Less than 30 minutes", "30 minutes - 1 hour")),
+         wsp04 = fct_recode(wsp04, "< 30 minutes"  = "Less than 30 minutes"))
+
+
+
+
+
+
+# Reorer factor levels ----------------------------------------------------
+
+wash <- wash |> 
+  mutate(sd08 = fct_relevel(sd08, "No"))
+
+
 # Label variables ---------------------------------------------------------
 
 attr(wash[['age']], 'label') <- "Age"
+attr(wash[['age_cat']], 'label') <- "Age category"
 attr(wash[['hhold_income']], 'label') <- "Monthly household income"
+attr(wash[['marital_status']], 'label') <- "Marital status"
+attr(wash[['education_level']], 'label') <- "Highest level of education"
+attr(wash[['occupation']], 'label') <- "Primary occupation"
+attr(wash[['hhsize']], 'label') <- "Number of people living in the household"
+
+
+
+# Merge water types with main dataset -------------------------------------
+
+
+water_types_labels <- labels_keep(water_types)
+
+water_types <- water_types |> 
+  select(water_source_sample, starts_with("wqa"), submission_id) |> 
+  select(!c(wqa08, wqa08a))
+
+dups_water_types <- water_types |> 
+  get_dupes(submission_id) 
+
+
+distinct_water_types <- water_types |> 
+  anti_join(dups_water_types, by = "submission_id")
+
+
+
+dups_water_types <- dups_water_types |> 
+  distinct() 
+
+
+
+dups_water_types |> 
+  filter(water_source_sample %in% c("Rain", "Rain water", "Rainwater")) |> 
+  get_dupes(submission_id)
+
+
+dups_water_types <- dups_water_types |> 
+  filter(! water_source_sample %in% c("Rain", "Rain water", "Rainwater") | submission_id == "718228739") # n = 51
+
+
+dups_water_types <- dups_water_types |> 
+  filter(!c(submission_id == "723818710" & wqa07 == 6.4)) |> 
+  filter(!c(submission_id == "720561982" & wqa07 == 6.4)) |> 
+  filter(!c(submission_id == "718479896" & water_source_sample == "Pond"),
+         !c(submission_id == "720524261" & water_source_sample == "Pond"),
+         !c(submission_id == "720530222" & water_source_sample == "Water Pan"),
+         !c(submission_id == "721381218" & water_source_sample == "River"),
+         !c(submission_id == "721381576" & water_source_sample == "River"),
+         !c(submission_id == "722596386" & water_source_sample == "Piped water"))
+
+
+water_types <- distinct_water_types |> 
+  bind_rows(dups_water_types) |> 
+  select(!c(dupe_count))
+
+water_types <- labels_restore(water_types, water_types_labels)
+
+
+# water_types <- water_types |> 
+#   group_by(submission_id) |> 
+#   mutate(index = row_number()) |> 
+#   ungroup()
+# 
+# 
+# water_types <- water_types |> 
+#   pivot_wider(id_cols = submission_id, names_from = index, values_from = starts_with("wqa") )
+
+
+wash <- wash |> 
+  left_join(water_types, by = c("id"="submission_id"))
+
+
+
+wash <- wash |> 
+  mutate(
+    ph_group = case_when(
+      wqa07 < 6.5 ~ "Acidic (<6.5)",
+      wqa07 >= 6.5 & wqa07 < 7.5 ~ "Neutral (6.5-7.5)",
+      wqa07 >= 7.5 & wqa07 < 8.5 ~ "Alkaline (7.5-8.5)",
+      wqa07 >= 8.5 ~ "Highly Alkaline (≥8.5)",
+      TRUE ~ "Missing"
+    ),
+    ph_group = factor(ph_group, levels = c("Acidic (<6.5)", "Neutral (6.5-7.5)", "Alkaline (7.5-8.5)",
+                                           "Highly Alkaline (≥8.5)"
+                                           )))
+
+
+
+
+wash <- wash |> 
+  mutate(ph_group = fct_drop(ph_group))
+
+
+
+attr(wash[['ph_group']], 'label') <- "pH Level"
 
 
 write_rds(wash, "data/wash_main_clean.rds")

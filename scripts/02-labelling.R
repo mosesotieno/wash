@@ -26,7 +26,8 @@ library(janitor)
 
 wash <- read_rds("data/wash_main.rds")
 wash_dict <- read_xlsx("metadata/wash_main_dict.xlsx")
-
+watertypes_dict <- read_xlsx("metadata/dict_water_types_main.xlsx")
+water_types <- read_rds("data/water_types.rds")
 
 # Clean dictionary --------------------------------------------------------
 
@@ -98,3 +99,31 @@ wash <- wash |>
 var_label(wash) <- setNames(wash_dict$new_label, wash_dict$new_var)
 
 write_rds(wash, "data/wash_main_labelled.rds")
+
+
+
+
+# Water types -------------------------------------------------------------
+
+# Create named vector for renaming
+rename_vector <- setNames(watertypes_dict$new_var, watertypes_dict$variable)
+
+# Rename variables
+water_types <- water_types %>%
+  rename_with(~ rename_vector[.x], .cols = any_of(names(rename_vector))) |> 
+  clean_names()
+
+
+
+watertypes_dict <- watertypes_dict |> 
+  mutate(new_var = make_clean_names(new_var))
+
+
+# Apply variable labels for water types-----------------------------------------
+
+var_label(water_types) <- setNames(watertypes_dict$new_label, watertypes_dict$new_var)
+
+
+write_rds(water_types, "data/water_types_labelled.rds")
+write_rds(watertypes_dict, "metadata/watertypes_dict.rds")
+

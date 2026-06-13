@@ -79,7 +79,13 @@ wash <- read_rds("../data/wash_main_clean.rds")
 
 wash_labels <- labels_keep(wash)
 
+for (x in names(wash_labels)){
+  var_label <- wash_labels[x]
+  wash_labels[x] <- paste0(var_label, " [", x, "]")
+}
+  
 
+wash <- labels_restore(wash, wash_labels)
 ```
 
 
@@ -90,7 +96,7 @@ wash_labels <- labels_keep(wash)
 The following are my observations, points of clarification  and a skim through of the entire dataset. 
 
 
-# Structure of Questionaire
+# Structure of Questionnaire
 
 ## Sections
 
@@ -214,7 +220,13 @@ gentable(wash, part2a)
 ## Part 3: Sanitation Facilities and Practices
 
 ```{r}
+part3 <- wash |> 
+  select(starts_with("sfp")) |> 
+  select(!where(is.character)) |> 
+  names()
 
+
+gentable(wash, part3)
 
 ```
 
@@ -224,7 +236,13 @@ gentable(wash, part2a)
 
 
 ```{r}
+part4 <- wash |> 
+  select(starts_with("wsr")) |> 
+  select(!where(is.character)) |> 
+  names()
 
+
+gentable(wash, part4)
 
 ```
 
