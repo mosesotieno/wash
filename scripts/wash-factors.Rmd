@@ -1,0 +1,185 @@
+---
+title: "WASH Study Factors"
+author: "Moses Otieno"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  word_document: 
+    reference_docx: "../reports/template.docx"
+knit: (function(inputFile, encoding) {
+    rmarkdown::render(inputFile, encoding = encoding, 
+    output_dir = "../reports/")
+  })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, ft.align = "left", warning = FALSE)
+options(gtsummary.tbl_summary.percent_fun = 
+          function(x) sprintf(x * 100, fmt='%#.1f'))
+```
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(gtsummary)
+library(flextable)
+library(dmngt)
+```
+
+```{r}
+wash <- read_rds("../data/wash_main_clean.rds")
+
+wash_labels <- labels_keep(wash)
+
+# for (x in names(wash_labels)){
+#   var_label <- wash_labels[x]
+#   wash_labels[x] <- paste0(var_label, " [", x, "]")
+# }
+
+
+wash <- wash |> 
+  mutate(across(c(wqa01, wqa02, wqa03), as.factor))
+  
+
+wash <- labels_restore(wash, wash_labels)
+
+wash_consented <- wash |> filter(consent == "Yes")
+
+```
+
+
+
+
+
+```{r}
+gentable <- function(data = wash, variables) {
+  
+
+t1 <- data %>% 
+  remove_empty(which = c("cols")) |> 
+  select(any_of(variables)) %>% 
+  tbl_summary( type = list(
+               where(is.factor) ~ "categorical",
+               where(is.numeric) ~ "continuous"),
+               missing = "no",
+               digits = list(all_categorical() ~ c(0, 1)),
+               #statistic = list(where(is.Date) ~ "{date_iq_range}"),
+               
+               ) %>% 
+  bold_labels() 
+
+ 
+
+
+t1 <-  t1 |> 
+  modify_header(label = "**Variable**") %>% 
+  modify_footnote(everything() ~ NA) |> 
+  as_flex_table() %>% 
+  font(fontname = "Calibri", part = "all") %>%
+  autofit() %>%
+  padding(padding = 1, part = "all") %>% 
+  fontsize(size = 10)
+  
+  
+
+t1
+
+}
+
+
+# Assuming 'wash' contains the variable wqa04 (Total hardness, mg/L as CaCO3)
+draw_plot <- function(variable, title_graph, ytitle){
+  
+  plot1 <- ggplot(wash_consented, aes(x = "", y = .data[[variable]])) +
+  geom_boxplot(
+    width = 0.6,
+    fill = "grey90",
+    colour = "black",
+    outlier.shape = 1,
+    outlier.size = 1.2
+  ) +
+  labs(
+    title = title_graph,
+    y = ytitle,
+    x = NULL
+  ) +
+  theme_classic(base_size = 11) +
+  theme(
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 10, hjust = 0.5),
+    axis.title.y = element_text(size = 11, face = "bold"),
+    axis.text = element_text(size = 10, colour = "black"),
+    axis.line = element_line(colour = "black", linewidth = 0.5),
+    axis.ticks = element_line(colour = "black", linewidth = 0.5)
+  ) +
+  coord_cartesian(clip = "off") 
+  
+  plot1
+  
+}
+```
+
+
+
+# Introduction
+
+# Socio-Demographic Characteristics
+
+
+```{r}
+
+demos <- c("age", "age_cat", "marital_status", "education_level","hhsize", "hhold_income","sd08" )
+
+
+
+gentable(wash_consented, demos)
+
+```
+
+
+
+
+# WASH Factors
+
+
+```{r}
+
+
+wash_vars <- c("wsp01", "wsp03", "wsp04", "wsp07", "wsp08", "wsp09", "wsp10", "wsp11",
+               "wqa01", "wqa02", "wqa03", "ph_group")
+
+gentable(wash_consented, wash_vars)
+```
+
+# Plots
+
+##  Total Hardness
+
+
+
+```{r}
+
+draw_plot("wqa04", "Distribution of Total Hardness of Water Samples", "Total hardness (mg/L as CaCO3)")
+  # prevent outlier clipping if needed
+```
+
+## Total Alkalinity
+
+
+```{r}
+draw_plot("wqa05", "Distribution of Total Alkalinity of Water Samples", "Total Alkalinity (mg/L as CaCO3)")
+
+```
+
+
+## Carbonate
+
+
+```{r}
+draw_plot("wqa06", "Distribution of Carbonate in Water Samples", "Carbonate (mg/L)")
+
+
+```
+
+
+
+
