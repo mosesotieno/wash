@@ -28,6 +28,7 @@ wash <- read_rds("data/wash_main.rds")
 wash_dict <- read_xlsx("metadata/wash_main_dict.xlsx")
 watertypes_dict <- read_xlsx("metadata/dict_water_types_main.xlsx")
 water_types <- read_rds("data/water_types.rds")
+water_data <- read_rds("data/water_data.rds")
 
 # Clean dictionary --------------------------------------------------------
 
@@ -126,4 +127,20 @@ var_label(water_types) <- setNames(watertypes_dict$new_label, watertypes_dict$ne
 
 write_rds(water_types, "data/water_types_labelled.rds")
 write_rds(watertypes_dict, "metadata/watertypes_dict.rds")
+
+
+
+# Water Data --------------------------------------------------------------
+
+
+attr(water_data[['water_type']], 'label') <- "Water type"
+attr(water_data[['sample_source']], 'label') <- "Sample source"
+attr(water_data[['date']], 'label') <- "Date"
+attr(water_data[['e_coli']], 'label') <- "E-coli"
+attr(water_data[['e_coli_100']], 'label') <- "E-coli * 100"
+attr(water_data[['total_coliforms']], 'label') <- "Total Coliforms"
+attr(water_data[['total_coliforms_100']], 'label') <- "Total Coliforms *100"
+
+write_rds(water_data, "data/water_data_labelled.rds")
+
 

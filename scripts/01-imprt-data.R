@@ -25,6 +25,7 @@ sanitation <- read_xlsx("data/WASH HPV MAIN STUDY DATASET.xlsx", sheet = 1)
 water_types <- read_xlsx("data/WASH HPV MAIN STUDY DATASET.xlsx", sheet = 3)
 dict_pilot <- read_xlsx("metadata/wash_dict_pilot.xlsx")
 wash_hpv_quiz <- read_xlsx("metadata/WASH_HPV_QUESTIONNAIRE.xlsx")
+water_data <- read_xlsx("data/Water Data- Main Study.xlsx")
 
 sanitation <- sanitation |> 
   remove_empty(which = c("cols"))
@@ -88,5 +89,15 @@ dict_types <- dict_types |>
 
 
 write_xlsx(dict_types, "metadata/dict_water_types.xlsx")
+
+
+
+# Water Data Results ------------------------------------------------------
+
+water_data <- water_data |> 
+  clean_names() |> 
+  rename(respondent_id = enter_the_respondent_id)
+
+write_rds(water_data, "data/water_data.rds")
 
 

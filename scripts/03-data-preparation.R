@@ -24,6 +24,9 @@ library(dmngt)
 wash <- read_rds("data/wash_main_labelled.rds")
 water_types <- read_rds("data/water_types_labelled.rds")
 watertypes_dict <- read_rds("metadata/watertypes_dict.rds")
+water_data <- read_rds("data/water_data_labelled.rds")
+
+
 
 wash_labels <- labels_keep(wash)
 
@@ -127,6 +130,9 @@ wash <- wash |>
          age_cat = as.factor(age_cat))
 
 
+
+
+
 # Recode variables --------------------------------------------------------
 
 
@@ -149,17 +155,35 @@ wash <- wash |>
                             ),
          hhsize = factor(hhsize, levels = c("1-3", "4-6", "7-9", "10+")),
          wsp04 = fct_relevel(wsp04, c("< 5 minutes", "Less than 30 minutes", "30 minutes - 1 hour")),
-         wsp04 = fct_recode(wsp04, "< 30 minutes"  = "Less than 30 minutes"))
+         wsp04 = fct_recode(wsp04, "< 30 minutes"  = "Less than 30 minutes"),
+         sfp08 = str_remove(sfp08, "N/A"),
+         sfp08 = str_squish(sfp08),
+         sfp08 = na_if(sfp08, ""),
+         pad_category = case_when(
+           sfp08 == "Sanitary towels" ~ "Sanitary towels only",
+           str_detect(sfp08, "Sanitary towels") & sfp08 != "Sanitary towels" ~ "Sanitary towels with other products",
+           !str_detect(sfp08, "Sanitary towels") & !is.na(sfp08) ~ "Other combinations (no sanitary towels)",
+           TRUE ~ NA_character_
+         ),
+         pad_category = factor(pad_category, levels = c("Sanitary towels only", "Sanitary towels with other products", "Other combinations (no sanitary towels)")),
+         shares_latrine = ifelse(sfp02 == "It is shared with other households", "Yes", "No"),
+         shares_latrine = ifelse(sfp01 == "No toilet/latrine facility", "No", shares_latrine),
+         num_sharing_latrine = sfp02_1,
+         num_sharing_latrine = ifelse(shares_latrine == "No", 0, num_sharing_latrine),
+         shares_latrine = ifelse(num_sharing_latrine == 0, "No", shares_latrine),
+         shares_latrine = as.factor(shares_latrine),
+         ) 
 
 
-
-
+wash |> count(num_sharing_latrine, shares_latrine)
 
 
 # Reorer factor levels ----------------------------------------------------
 
 wash <- wash |> 
-  mutate(sd08 = fct_relevel(sd08, "No"))
+  mutate(sd08 = fct_relevel(sd08, "No"),
+         across(where(is.factor), ~fct_relevel(., "Other",after = Inf)),
+         across(where(is.factor), ~fct_recode(., NULL = "N/A")))
 
 
 # Label variables ---------------------------------------------------------
@@ -171,6 +195,10 @@ attr(wash[['marital_status']], 'label') <- "Marital status"
 attr(wash[['education_level']], 'label') <- "Highest level of education"
 attr(wash[['occupation']], 'label') <- "Primary occupation"
 attr(wash[['hhsize']], 'label') <- "Number of people living in the household"
+attr(wash[['pad_category']], 'label') <- "Menstrual hygiene product used"
+attr(wash[['shares_latrine']], 'label') <- "Shares latrine/toilet facilities with other households"
+attr(wash[['num_sharing_latrine']], 'label') <- "Number of households sharing latrine/toilet facilities"
+
 
 
 
@@ -261,6 +289,48 @@ wash <- wash |>
 
 
 attr(wash[['ph_group']], 'label') <- "pH Level"
+
+
+
+
+
+# Water Data --------------------------------------------------------------
+
+
+dups_waterdata <- water_data |> 
+  get_dupes(respondent_id) 
+
+
+distinct_waterdata <- water_data |> 
+  anti_join(dups_waterdata, by = "respondent_id")
+
+dups_waterdata <- dups_waterdata |> 
+  distinct() 
+
+dups_waterdata <- dups_waterdata |> 
+  filter(! water_type %in% c("Rain", "Rain water", "Rainwater")) # n = 51
+
+
+dups_waterdata <- dups_waterdata |> 
+  filter(! c(respondent_id == "R185" & water_type == "Piped water")) |> 
+  filter(! c(respondent_id == "R22" & water_type == "Water pan")) |> 
+  filter(! c(respondent_id == "R265" & water_type == "Piped water")) |> 
+  filter(! c(respondent_id == "R270" & water_type == "River")) |> 
+  filter(! c(respondent_id == "R275" & water_type == "Lake")) |> 
+  filter(! c(respondent_id == "R284" & water_type == "Piped water"))
+
+
+water_data <- distinct_waterdata |> 
+  bind_rows(dups_waterdata)
+
+
+
+wash <- wash |> 
+  left_join(water_data, by = "respondent_id")
+
+
+water_data |> anti_join(wash, by = "respondent_id")
+
 
 
 write_rds(wash, "data/wash_main_clean.rds")

@@ -116,6 +116,44 @@ draw_plot <- function(variable, title_graph, ytitle){
   plot1
   
 }
+
+draw_histogram <- function(data, variable, ptitle, xlabel = NULL,
+                           bins = 30, log_transform = FALSE) {
+  
+  p <- ggplot(data, aes(x = .data[[variable]]))
+  
+  if(log_transform) {
+    p <- p + geom_histogram(
+      bins = bins,
+      fill = "grey70",
+      colour = "black",
+      linewidth = 0.3
+    ) +
+      scale_x_log10(
+        name = ifelse(is.null(xlabel), variable, xlabel),
+        breaks = scales::log_breaks(n = 5)
+      )
+  } else {
+    p <- p + geom_histogram(
+      bins = bins,
+      fill = "grey70",
+      colour = "black",
+      linewidth = 0.3
+    ) +
+      labs(x = ifelse(is.null(xlabel), variable, xlabel))
+  }
+  
+  p + labs(y = "Frequency", title = ptitle) +
+    theme_classic(base_size = 11) +
+    theme(
+      plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+      axis.title.y = element_text(size = 11, face = "bold"),
+      axis.title.x = element_text(size = 11, face = "bold"),
+      axis.text = element_text(size = 10, colour = "black"),
+      axis.line = element_line(colour = "black", linewidth = 0.5),
+      axis.ticks = element_line(colour = "black", linewidth = 0.5)
+    )
+}
 ```
 
 
@@ -145,10 +183,26 @@ gentable(wash_consented, demos)
 
 
 wash_vars <- c("wsp01", "wsp03", "wsp04", "wsp07", "wsp08", "wsp09", "wsp10", "wsp11",
-               "wqa01", "wqa02", "wqa03", "ph_group")
+               "wqa01", "wqa02", "wqa03", "sfp01","shares_latrine","num_sharing_latrine","sfp03","sfp04","sfp05","sfp06","sfp07","pad_category","sfp09","sfp10","sfp11", "hp01","hp02","hp03","hp04","hp05","hp06","hp07","hp08","ph_group")
 
 gentable(wash_consented, wash_vars)
 ```
+
+
+## Sexual Reproductive Health Hygiene
+
+
+```{r}
+
+sex_vars <- c("wsr01", "wsr02", "wsr03", "wsr03a", "wsr03b", "wsr03c", "wsr03d", "wsr08")
+
+gentable(wash_consented, sex_vars)
+```
+
+
+
+
+
 
 # Plots
 
@@ -181,5 +235,30 @@ draw_plot("wqa06", "Distribution of Carbonate in Water Samples", "Carbonate (mg/
 ```
 
 
+## Ecoli
+
+
+```{r}
+#draw_plot("e_coli", "Distribution of coliforms in Water Samples", "Coliforms * 100")
+draw_histogram(wash_consented, "e_coli", 
+               ptitle = "Distribution of Total Ecoli in Water Samples",
+               xlabel = "Ecoli",
+               log_transform = FALSE)
+
+```
+
+
+
+
+## Coliforms
+
+
+```{r}
+
+draw_histogram(wash_consented, "total_coliforms", 
+               ptitle = "Distribution of Total Coliforms in Water Samples",
+               xlabel = "Coliforms",
+               log_transform = FALSE)
+```
 
 
