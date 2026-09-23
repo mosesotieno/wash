@@ -41,11 +41,33 @@ wash <- wash |>
 wash <- labels_restore(wash, wash_labels)
 
 wash_consented <- wash |> filter(consent == "Yes")
+
+
+wash_consented <- wash_consented |> 
+  mutate(colliform_ecolli = ifelse( total_coliforms >0 | e_coli>0, "Yes", "No"),
+         colliform_ecolli = as.factor(colliform_ecolli))
+
+
+wash_consented <- wash_consented |> 
+  mutate(ecolli = ifelse( total_coliforms >0 & e_coli>0, "Yes", "No"),
+         ecolli = as.factor(ecolli))
+
+wash_consented <- wash_consented |> 
+  mutate(ecolli_colliform = ifelse( total_coliforms >0 | e_coli>0, "Yes", "No"),
+         ecolli_colliform = as.factor(ecolli_colliform))
+
+attr(wash_consented[['ecolli']], 'label') <- "Any trace of ecolli"
+attr(wash_consented[['ecolli_colliform']], 'label') <- "Any trace of colliform or ecolli"
+
+
+wash_consented <- wash_consented |> 
+  drop_na(ecolli_colliform)
+
 ```
 
 
 ```{r}
-gentable <- function(data = wash, variables) {
+gentable <- function(data = wash_consented, variables) {
   
 
 t1 <- data %>% 
@@ -63,21 +85,125 @@ t1 <- data %>%
 
  
 
-
-t1 <-  t1 |> 
+t2 <- wash_consented %>% 
+  select(all_of(variables), ecolli_colliform) %>% 
+  tbl_summary(by = ecolli_colliform,
+    missing = "no",
+    percent = "row",
+    type = list(where(is.factor) ~ "categorical",
+               where(is.numeric) ~ "continuous")) %>%
+  bold_labels() %>% 
   modify_header(label = "**Variable**") %>% 
+  add_p(pvalue = function(x) style_pvalue(x, digits = 3)) %>%
+  bold_labels() %>%
+  bold_p()
+
+table1_final <- tbl_merge(
+  tbls = list(t1, t2),
+  tab_spanner = c("**Overall**", "**Low water Quality**")
+) %>% 
+  modify_header(label = "**Variable**") |> 
   modify_footnote(everything() ~ NA) |> 
   as_flex_table() %>% 
   font(fontname = "Calibri", part = "all") %>%
   autofit() %>%
   padding(padding = 1, part = "all") %>% 
   fontsize(size = 10)
+
+
+table1_final
+}
+
+```
+
+```{r functions}
+# ---- Wald confidence intervals
+
+waldci <- function(x, exponentiate =  TRUE, conf.level = 0.95, ...) {
+  dplyr::bind_cols(
+    broom::tidy(x, exponentiate = exponentiate, conf.int = FALSE),
+    # calculate the confidence intervals, and save them in a tibble
+    exp(stats::confint.default(x)) %>%
+      tibble::as_tibble() %>%
+      rlang::set_names(c("conf.low", "conf.high"))  )
+}
+
+
+# ---- Binary logistic regression 
+
+binary.regress <- function(outcome, var) {
+
+wash_consented %>% 
+  select(all_of({{var}}), {{outcome}}) %>%
+  drop_na({{outcome}}) %>% 
+  tbl_uvregression(tidy_fun = waldci,
+    method = glm,
+    y = {{outcome}},
+    method.args = list(family = binomial),
+    exponentiate = TRUE,
+    pvalue_fun = function(x) style_pvalue(x, digits = 2)
+  ) %>% 
+  bold_p() %>%
+  bold_p(t = 0.05) %>%
+  bold_labels() %>% 
+  modify_header(label = "**Variable**",
+                estimate = "**unadjusted OR**") %>% 
   
+  modify_table_styling(
+    columns = c("ci", "estimate", "conf.low"),
+    rows = reference_row %in% TRUE,
+    missing_symbol = "Ref"
+  )   %>% 
+  modify_column_hide(stat_n)  %>%
+  as_flex_table() %>% 
+  font(fontname = "Calibri", part = "all") %>%
+  autofit() %>%
+  padding(padding = 1, part = "all") %>% 
+  fontsize(size = 10)
+
+  
+}
+
+
+#---- Multivariate logistic regression model
+
+mvariate.regress <- function(outcome, covariates) {
+  form <- paste(outcome, "~",
+                paste(covariates, collapse = " + "))
+  
+  model1 <- glm(as.formula(form),
+      data = wash_consented, family = binomial) 
   
 
-t1
+  # step.model <- MASS::stepAIC(model1, direction = "both",
+  #                             trace=0
+  #                             # scope = list(lower = ~ agecat + a2_gender,
+  #                             #              upper =  model1)
+  #)
+  
+ model1  %>% 
+    tbl_regression(tidy_fun = waldci,
+    exponentiate = TRUE
+  ) %>%
+  bold_p() %>%
+  bold_p(t = 0.05) %>%
+  bold_labels() %>% 
+  modify_header(label = "**Variable**",
+                estimate = "**adjusted OR**") %>% 
+  modify_table_styling(
+    columns = c("ci","estimate", "conf.low"),
+    rows = reference_row %in% TRUE,
+    missing_symbol = "Ref"
+  )   %>% 
+  as_flex_table() %>% 
+  font(fontname = "Calibri", part = "all") %>%
+  autofit() %>%
+  padding(padding = 1, part = "all") %>% 
+  fontsize(size = 10) 
 
 }
+
+
 
 ```
 
@@ -89,7 +215,7 @@ demos <- c("age", "age_cat", "marital_status", "education_level","hhsize", "hhol
 gentable(wash_consented, demos)
 ```
 
-
+\newpage
 
 # Table 2
 
@@ -97,9 +223,32 @@ gentable(wash_consented, demos)
 ```{r}
 
 
-wash_vars <- c("wsp01", "wsp03", "wsp04", "wsp07", "wsp08", "wsp09", "wsp10", "wsp11",
-               "wqa01", "wqa02", "wqa03", "sfp01","shares_latrine","sfp03","sfp04","sfp05","sfp06","sfp07","pad_category","sfp09","sfp10","sfp11", "hp01","hp02","hp03","hp04","hp05","ph_group")
+
+wash_vars <- c("wsp01", "wsp03", "wsp04", "wsp07", "wsp08", "wsp09", "wsp10", "wsp11", "sfp01","shares_latrine","sfp03","diaper_napkin","dispose_menstprod","sfp10","dispose_solidwaste", "hp01")
+
+
+wash_vars_list <- wash_labels[names(wash_labels) %in% wash_vars]
 
 gentable(wash_consented, wash_vars)
 ```
+
+
+
+# Table 3
+```{r}
+
+demos <- setdiff(demos, "age")
+vars <- c(demos, wash_vars)
+binary.regress("ecolli_colliform", vars)
+```
+
+
+## Table 4 
+
+```{r}
+
+mvarrs <- c("wsp01", "wsp03", "wsp07", "wsp08", "wsp10", "sfp10")
+mvariate.regress("ecolli_colliform", mvarrs)
+```
+
 

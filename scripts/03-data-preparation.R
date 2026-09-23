@@ -132,6 +132,20 @@ wash <- wash |>
 
 
 
+# Clean Other specify -----------------------------------------------------
+
+wash <- wash |> 
+  mutate(wsp01 = case_when(str_detect(wsp01_1, "Well|Kisima") ~ "Borehole",
+                           wsp01_1 == "Water tank" ~ "Rainwater", 
+                           .default = wsp01),
+         wsp01 = as.factor(wsp01),
+         wsp01 = fct_relevel(wsp01, "Surface water"),
+         wsp07 = ifelse(wsp07_1 == "Tank water" & wsp07 == "Other", "Piped water", as.character(wsp07)),
+         wsp07 = as.factor(wsp07),
+         wsp07 = fct_relevel(wsp07, "Surface water"),
+         )
+
+
 
 # Recode variables --------------------------------------------------------
 
@@ -142,6 +156,7 @@ safety_water <- c("I am not sure how safe it is, I assume it is fine",
 wash <- wash |> 
   mutate(marital_status = ifelse(str_detect(sd02, "Married"), "Married", as.character(sd02)),
          marital_status = factor(marital_status, levels = c("Single", "Married", "Divorced/Separated", "Widowed")),
+         marital_status = fct_collapse(marital_status, "Divorced/Separated/Widowed" = c("Widowed", "Divorced/Separated")),
          education_level = fct_collapse(sd03, "None/Primary" = c("Primary school", "No formal education"),
                                       "University/Tertiary" = c("University/Higher education", "Tertiary/Vocational training"),
                                       "Secondary" = "Secondary school"),
@@ -179,11 +194,31 @@ wash <- wash |>
                               "Not always available" = c("Sometimes unavailable", "Daily water shortage issues","Unavailable during water scarcity periods only")),
          wsp11 = fct_collapse(wsp11, "Always available" = "It is always available",
                               "Not always available" = c("Sometimes unavailable", "Daily water shortage issues","Unavailable during water scarcity periods only")),
-         wsp07 = fct_recode(wsp07, "Other" = "Borehole outside your premise",
+         wsp07 = fct_collapse(wsp07, "Water vendor/Tanker/Borehole" = c("Borehole outside your premise", "Water vendor/ Tanker"),
                             "Rainwater" = "Rainwater collection"),
+         wsp07 = fct_relevel(wsp07, "Water vendor/Tanker/Borehole",after = Inf),
          wsp01 = fct_recode(wsp01, "Other" = "Water vendor/ Tanker"),
          wsp09 = fct_collapse(wsp09, "I believe it is safe" = "I believe it is safe, I never get ill from it",
-                              "Unsafe/Not sure" = safety_water)
+                              "Unsafe/Not sure" = safety_water),
+         sfp10 = fct_collapse(sfp10, "Yes" = c("Yes, private outdoor area", "Yes, private indoor area",
+                                               "Yes, shared communal bathing area"),
+                              "No" = c("No, I bathe in the open/river/lake", "Other")),
+         sfp01 = fct_collapse(sfp01, "Improved" = c("Pit latrine with slab/covered pit", "Flush/Pour-flush toilet"),
+                              "Unimproved" = c("No toilet/latrine facility", "Pit latrine without slab/open pit")),
+         sfp01 = fct_relevel(sfp01, "Unimproved"),
+         dispose_childwaste = fct_collapse(sfp07, "Safe" = c("In the toilet/latrine", "Bury it"),
+                              "Unsafe" = c("Throw in the bush/field", "Throw in the river or lake", 
+                                           "Dispose with household waste", "Other")),
+         dispose_childwaste = fct_recode(dispose_childwaste, NULL = "I don't have children"),
+         dispose_menstprod = fct_collapse(sfp09, "Safe" = c("Dispose in the toilet/latrine", "Bury", "Reusable products", "Burn"),
+                                          "Unsafe" = c("Wrap and dispose with household waste", "Throw in the bush/field", "Other, specify")),
+         dispose_solidwaste = fct_collapse(sfp11, "Safe"= c("Composted", "Burned in the yard", "Collected by municipal services"),
+                                           "Unsafe" = c("Dumped in an open space/river/lake", "Other")),
+         diaper_napkin = ifelse(sfp05 == "Yes" | sfp06 == "Yes", "Yes", "No"),
+         diaper_napkin = as.factor(diaper_napkin),
+         wsp01 = fct_collapse(wsp01, "Borehole/Other"= c("Borehole", "Other")),
+         wsp01 = fct_relevel(wsp01, "Borehole/Other",after = Inf)
+         
          ) 
 
 
@@ -192,8 +227,14 @@ wash |> count(num_sharing_latrine, shares_latrine)
 
 # Reorder factor levels ----------------------------------------------------
 
+
+norefs <- c("sfp10", "sd08", "wsp10", "sfp03", "sfp05")
+unsafe_refs <- c("dispose_childwaste", "dispose_menstprod", "dispose_solidwaste")
+
+
 wash <- wash |> 
-  mutate(sd08 = fct_relevel(sd08, "No"),
+  mutate(across(c(norefs), ~fct_relevel(., "No")),
+         across(c(unsafe_refs), ~fct_relevel(., "Unsafe")),
          across(where(is.factor), ~fct_relevel(., "Other",after = Inf)),
          across(where(is.factor), ~fct_recode(., NULL = "N/A")))
 
@@ -212,6 +253,11 @@ attr(wash[['hhsize']], 'label') <- "Number of people living in the household"
 attr(wash[['pad_category']], 'label') <- "Menstrual hygiene product used"
 attr(wash[['shares_latrine']], 'label') <- "Shares latrine/toilet facilities with other households"
 attr(wash[['num_sharing_latrine']], 'label') <- "Number of households sharing latrine/toilet facilities"
+attr(wash[['dispose_childwaste']], 'label') <- "Disposal of children's waste"
+attr(wash[['dispose_menstprod']], 'label') <- "Disposal of mentrual products"
+attr(wash[['dispose_solidwaste']], 'label') <- "Disposal of household solid waste"
+attr(wash[['diaper_napkin']], 'label') <- "Have children in the households using either diaper or napkin"
+
 
 
 

@@ -59,7 +59,7 @@ write_xlsx(wash_dict, "metadata/wash_main_dict.xlsx")
 # Create named vector for renaming
 rename_vector <- setNames(wash_dict$new_var, wash_dict$variable)
 
-# Rename variables
+# Rename varia
 wash <- wash %>%
   rename_with(~ rename_vector[.x], .cols = any_of(names(rename_vector))) |> 
   clean_names()
