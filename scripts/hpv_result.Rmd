@@ -1,0 +1,324 @@
+---
+title: "HPV Results"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  word_document: 
+    reference_docx: "../reports/template.docx"
+knit: (function(inputFile, encoding) {
+    rmarkdown::render(inputFile, encoding = encoding, 
+    output_dir = "../reports/")
+  })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, ft.align = "left", warning = FALSE)
+options(gtsummary.tbl_summary.percent_fun = 
+          function(x) sprintf(x * 100, fmt='%#.1f'))
+```
+
+
+```{r}
+library(scales)
+library(tidyverse)
+library(naniar)
+library(janitor)
+library(gtsummary)
+library(flextable)
+library(writexl)
+```
+
+```{r}
+hpv_results <- read_rds("../data/results_hpv.rds")
+```
+
+
+
+```{r}
+nsize <- nrow(hpv_results)
+npeople <- hpv_results |> distinct(sample_id) |> nrow()
+missid <- hpv_results |> filter(is.na(sample_id)) |> nrow()
+
+ncols <- hpv_results |> ncol()
+nrows <- hpv_results |> nrow()
+
+```
+
+```{r}
+gentable <- function(data = hpv_results, variables) {
+  
+
+t1 <- data %>% 
+  remove_empty(which = c("cols")) |> 
+  select(any_of(variables)) %>% 
+  tbl_summary( type = list(
+               where(is.factor) ~ "categorical",
+               where(is.numeric) ~ "continuous"),
+               missing_text =  "Missing",
+               digits = list(all_categorical() ~ c(0, 1)),
+               #statistic = list(where(is.Date) ~ "{date_iq_range}"),
+               
+               ) %>% 
+  bold_labels() 
+
+ 
+
+
+t1 <-  t1 |> 
+  modify_header(label = "**Variable**") %>% 
+  modify_footnote(everything() ~ NA) %>% 
+  modify_header(label = "**Variable**") |> 
+  gtsummary::as_flex_table() %>%
+  theme_box() %>% 
+  align(i = 1, align = "center", part = "header") %>% 
+  flextable::font(fontname = "Calibri", part = "all") %>%
+  flextable::padding(padding = 1, part = "all") %>% 
+  bold(part = "header") %>% 
+  bg(bg = "gray", part = "header") 
+  
+  
+
+t1
+
+}
+
+```
+
+
+## Dimensionality
+
+The results file has `r ncols` columns and `r nrows` rows. 
+
+## Sample Size 
+We have `r nsize` results from `r npeople` participants. We had  `r missid` results with missing sample id. We are hopeful that the results can be linked to the survey dataset perfectly. 
+
+
+## Missing information
+
+
+```{r}
+miss_var_summary(hpv_results) |> 
+  filter(n_miss>0) |> 
+  flextable() |> 
+    theme_box() |> 
+    flextable::font(fontname = "Calibri", part = "all") %>%
+    flextable::padding(padding = 1, part = "all") %>% 
+    bold(part = "header") %>% 
+    bg(bg = "gray", part = "header") |>
+    autofit()
+```
+
+
+
+## Table
+
+
+```{r}
+
+
+variables <- names(hpv_results)
+
+ex <- c("sample_id", "analysis_created_at_utc", "filename_s", "barcode_s", "ap_version", "instrument_id_s", "assay_result_target_code", "analysis_authorized_at_utc", "analysis_authorized_by", "target_1_wells", "target_2_wells", "target_1_plates", "target_2_plates", "analysis_external_reference")
+
+variables <- setdiff(variables, ex)
+
+#variables <- c("assay_result_target_code", "assay_result_target")
+
+
+gentable(hpv_results, variables)
+```
+
+
+\newpage
+
+## Detected Assay Results
+
+
+```{r}
+hpv_pos <- hpv_results |> 
+  filter(assay_result == "Detected") |> 
+  filter(assay_result_target != "TVag") |> 
+  group_by(sample_id) |> 
+  add_count(sample_id, name = "ngenotypes") |> 
+  ungroup()
+
+
+tvag_pos <- hpv_results |> 
+  filter(assay_result == "Detected") |> 
+  filter(assay_result_target == "TVag")
+
+
+
+# Get the participants with Tvag only
+
+tvag_pos <- tvag_pos |> 
+  anti_join(hpv_pos, by = "sample_id") |> 
+  mutate(comment = "Only TVag detected")
+
+
+
+hpv_neg <- hpv_results |> 
+  anti_join(hpv_pos, by = "sample_id") |> 
+  anti_join(tvag_pos, by = "sample_id") |> 
+  mutate(comment = "Neither TVag nor HPV not detected")
+
+
+hpv_neg <- hpv_neg |> 
+  distinct(sample_id, assay_result, .keep_all = TRUE)
+
+
+hpv_pos_participants <- hpv_pos |> 
+  distinct(sample_id, .keep_all = TRUE) |> 
+  mutate(comment = paste("Had ", ngenotypes, " HPV genotypes"))
+
+
+participants <- hpv_pos_participants |> 
+  bind_rows(hpv_neg) |> 
+  bind_rows(tvag_pos) |> 
+  select(sample_id, comment, ngenotypes) |> 
+  mutate(
+    ngenotypes = ifelse(is.na(ngenotypes), 0, ngenotypes),
+    hpv_detected = ifelse(ngenotypes >0, "Yes", "No"),
+    hpv_detected = as.factor(hpv_detected)
+         )
+
+
+nhpv <- participants |> filter(hpv_detected == "Yes") |> nrow()
+nparticipants <- nrow(participants)
+
+
+prev <- round(nhpv/nparticipants*100, 1)
+
+participants <- participants |> 
+  arrange(sample_id)
+
+
+
+
+gentypes <- hpv_results |> 
+  filter(assay_result == "Detected") |> 
+  filter(assay_result_target != "TVag") |> 
+  group_by(sample_id) |> 
+  summarise(assay_results = str_c(assay_result_target, collapse = ", ")) |> 
+  ungroup()
+  
+
+participants <- participants |> 
+  left_join(gentypes, by = "sample_id")
+
+
+
+
+write_xlsx(participants, "../data/participants.xlsx")
+
+```
+
+
+
+The total number of participants with lab results were `r nparticipants`. Out these, we detected at least HPV genotype in `r nhpv` partipants. This represents `r prev`. 
+
+
+## Genotype Distribution
+
+```{r}
+
+
+
+hpv_pos_participants <- hpv_pos_participants |> 
+  mutate(ngenotypes = as.factor(ngenotypes))
+
+attr(hpv_pos_participants[['ngenotypes']], 'label') <- "Number of HPV genotypes"
+
+
+gentable(hpv_pos_participants, "ngenotypes")
+
+
+```
+
+
+
+Over half of the participants tested had a single HPV genotype.  The highest number of HPV genotypes detected was 7. 
+
+
+```{r}
+# 
+# library(scales)
+# 
+# hpv_pos_participants |>
+#   count(ngenotypes) |>
+#   ggplot(aes(x = factor(ngenotypes), y = n)) +
+#   geom_col(fill = "#2C7FB8", width = 0.7) +
+#   geom_text(aes(label = n), vjust = -0.4, size = 3.5, color = "grey20") +
+#   scale_y_continuous(
+#     expand = expansion(mult = c(0, 0.1)),
+#     labels = comma
+#   ) +
+#   labs(
+#     title = "Distribution of HPV Genotypes ",
+#     subtitle = "Number of genotypes detected among HPV-positive participants",
+#     x = "Number of HPV genotypes",
+#     y = "Number of participants"
+#   ) +
+#   theme_minimal(base_size = 13) +
+#   theme(
+#     plot.title = element_text(face = "bold", size = 12),
+#     plot.subtitle = element_text(color = "grey40", margin = margin(b = 10)),
+#     plot.caption = element_text(color = "grey50", size = 9, hjust = 1),
+#     panel.grid.major.x = element_blank(),
+#     panel.grid.minor = element_blank(),
+#     axis.text = element_text(color = "grey20"),
+#     axis.title.x = element_text(margin = margin(t = 8)),
+#     axis.title.y = element_text(margin = margin(r = 8)),
+#     plot.margin = margin(15, 20, 15, 15)
+#   )
+
+
+
+```
+
+## HPV Distribution
+
+We targeted __18__ HPV genotypes and detected  
+We detected `r nrow(hpv_pos)` HPV genotypes. The graph below shows the distribution of all the genotypes detected. 
+
+```{r}
+
+
+
+
+
+hpv_pos |>
+  mutate(assay_result_target = as.factor(assay_result_target)) |>
+  count(assay_result_target) |>
+  ggplot(aes(x = fct_reorder(assay_result_target, n), y = n)) +
+  geom_col(fill = "#2C7FB8", width = 0.7) +
+  geom_text(aes(label = n), hjust = -0.2, size = 3.5, color = "grey20") +
+  coord_flip() +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.1)),
+    labels = comma
+  ) +
+  labs(
+    title = "Distribution of HPV genotypes",
+    x = NULL,
+    y = "Number of samples",
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 15),
+    plot.subtitle = element_text(color = "grey40", margin = margin(b = 10)),
+    plot.caption = element_text(color = "grey50", size = 9, hjust = 1),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text = element_text(color = "grey20"),
+    axis.title.x = element_text(margin = margin(t = 8)),
+    #plot.margin = margin(15, 20, 15, 15)
+  )
+  
+```
+
+
+
+
+
+
+

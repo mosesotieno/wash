@@ -135,6 +135,9 @@ wash <- wash |>
 
 # Recode variables --------------------------------------------------------
 
+safety_water <- c("I am not sure how safe it is, I assume it is fine",
+                  "I know it is not safe, so I treat it", 
+                  "I know my water is not safe, but I am strong, it doesn’t affect me")
 
 wash <- wash |> 
   mutate(marital_status = ifelse(str_detect(sd02, "Married"), "Married", as.character(sd02)),
@@ -172,18 +175,29 @@ wash <- wash |>
          num_sharing_latrine = ifelse(shares_latrine == "No", 0, num_sharing_latrine),
          shares_latrine = ifelse(num_sharing_latrine == 0, "No", shares_latrine),
          shares_latrine = as.factor(shares_latrine),
+         wsp03 = fct_collapse(wsp03, "Always available" = "It is always available",
+                              "Not always available" = c("Sometimes unavailable", "Daily water shortage issues","Unavailable during water scarcity periods only")),
+         wsp11 = fct_collapse(wsp11, "Always available" = "It is always available",
+                              "Not always available" = c("Sometimes unavailable", "Daily water shortage issues","Unavailable during water scarcity periods only")),
+         wsp07 = fct_recode(wsp07, "Other" = "Borehole outside your premise",
+                            "Rainwater" = "Rainwater collection"),
+         wsp01 = fct_recode(wsp01, "Other" = "Water vendor/ Tanker"),
+         wsp09 = fct_collapse(wsp09, "I believe it is safe" = "I believe it is safe, I never get ill from it",
+                              "Unsafe/Not sure" = safety_water)
          ) 
 
 
 wash |> count(num_sharing_latrine, shares_latrine)
 
 
-# Reorer factor levels ----------------------------------------------------
+# Reorder factor levels ----------------------------------------------------
 
 wash <- wash |> 
   mutate(sd08 = fct_relevel(sd08, "No"),
          across(where(is.factor), ~fct_relevel(., "Other",after = Inf)),
          across(where(is.factor), ~fct_recode(., NULL = "N/A")))
+
+wash <- labels_restore(wash, wash_labels)
 
 
 # Label variables ---------------------------------------------------------
@@ -331,6 +345,12 @@ wash <- wash |>
 
 water_data |> anti_join(wash, by = "respondent_id")
 
+
+wash <- wash |> 
+  mutate(digit_id = parse_number(respondent_id),
+         sample_id = case_when(digit_id < 10 ~ str_c("R", "00", digit_id),
+                               digit_id < 100 ~ str_c("R", "0", digit_id),
+                               .default = as.character(respondent_id))) 
 
 
 write_rds(wash, "data/wash_main_clean.rds")
