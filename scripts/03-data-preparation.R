@@ -383,7 +383,7 @@ dups_waterdata <- dups_waterdata |>
 water_data <- distinct_waterdata |> 
   bind_rows(dups_waterdata)
 
-
+write_rds(water_data, "data/water_data_clean.rds")
 
 wash <- wash |> 
   left_join(water_data, by = "respondent_id")
